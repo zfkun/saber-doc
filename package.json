@@ -1,0 +1,15 @@
+{
+  "name": "saber-doc",
+  "version": "0.1.0",
+  "description": "Saber API文档。",
+  "maintainers": [
+    {
+      "name": "zfkun",
+      "email": "zfkun@msn.com"
+    }
+  ],
+  "devDependencies": {
+    "grunt": "~0.4.1",
+    "grunt-jsdoc": "~0.4.1"
+  }
+}
