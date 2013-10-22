@@ -6,7 +6,7 @@ module.exports = function (grunt) {
         meta: {
             pkg: grunt.file.readJSON('package.json'),
             src: {
-                main: '..'
+                main: '../../ecomfe'
             }
         },
 
@@ -16,7 +16,10 @@ module.exports = function (grunt) {
                 destination: 'doc'
             },
             files: [
-                '<%= meta.src.main %>/../ecomfe/saber-emitter/src/*.js',
+                '<%= meta.src.main %>/saber-lang/src/*.js',
+                '<%= meta.src.main %>/saber-emitter/src/*.js',
+                '<%= meta.src.main %>/saber-dom/src/*.js',
+                '<%= meta.src.main %>/saber-ui/src/*.js',
                 '<%= meta.src.main %>/saber-control/src/*.js',
                 '<%= meta.src.main %>/saber-button/src/*.js'
             ]
