@@ -9,6 +9,7 @@
     "templates": {
         "cleverLinks": false,
         "monospaceLinks": false,
+        "theme": "slate",
         "default": {
             "outputSourceFiles": true
         }
