@@ -65,7 +65,10 @@ module.exports = function (grunt) {
                     configure: '.jsdocrc',
                     destination: 'doc/saber-tab'
                 },
-                src: [ '<%= meta.src.main %>/saber-tab/src/*.js' ]
+                src: [
+                    '<%= meta.src.main %>/saber-tab/src/*.js',
+                    '<%= meta.src.main %>/saber-tab/src/plugin/*.js'
+                ]
             }
         }
 
