@@ -59,7 +59,6 @@ define(function ( require ) {
      * @fires Tab#add
      * @fires Tab#remove
      * @fires Tab#change
-     * @fires Tab#click
      * @param {Object=} options 初始化配置参数
      * @param {string=} options.id 控件标识
      * @param {HTMLElement=} options.main 控件主元素
@@ -138,6 +137,18 @@ define(function ( require ) {
             var properties = lang.extend( {
                 tabs: this.tabs
             }, options );
+
+            // 静态化构建时，所有属性值从DOM属性而来，均是字符串
+            // 用正则，而没用`!!`，是因为：
+            // `saber-scroll`控件部分属性默认值为`true`
+            // 若静态话配置为`'false'`时，`!!'false'`就失效了为`true`
+            // TODO：找到更好的方式后再替换
+            if ( options.hasOwnProperty( 'scroll' ) ) {
+                // 这里顺便同步修复下属性`scroll`和初始化配置`scroll`的类型
+                properties.scroll = this.options.scroll
+                                  = options.scroll
+                                  = /\s?true\s?/i.test( options.scroll );
+            }
 
             // // 若静态化解析构建时，初始化参数值都是字符串，这里多做下转换
             // properties.activeIndex = properties.activeIndex | 0;
@@ -230,40 +241,11 @@ define(function ( require ) {
 
             // `navigator`部件滚动支持
             if ( this.scroll ) {
-                // 初始化前需要确保`saber-scroll`的标准结构复合要求
-                // `&lt;container>&lt;main>...&lt;/main>&lt;/container>`
-                // 
-                // 1. 查找`scroller`部件元素，并检查是否为`控件主元素`的`第一子元素`
-                //    若没找到，则自动创建并插入到第一子元素位置
-                //    若找到，但不是第一子元素，则直接移动到第一子元素位置
-                var firstChild = this.main.children[ 0 ];
-                var scroller = dom.query( '[data-role=scroll]', this.main );
-                if ( firstChild !== scroller ) {
-                    if ( !scroller ) {
-                        scroller = document.createElement( 'div' );
-                        scroller.setAttribute( 'data-role', 'scroll' );
-                    }
-
-                    this.main.insertBefore( scroller, firstChild );
-                    scroller.appendChild( trigger );
-                }
-
-                // 确保`scroller`部件元素设置了正确的`id`和`部件样式`
-                scroller.id = helper.getId( this, 'scroller' );
-                helper.addPartClasses( this, 'scroller', scroller );
-
-                // 这里最后检查并确保`navigator`部件元素
-                // 是`scroller`部件元素的`第一子元素`
-                if ( scroller.children[ 0 ] !== trigger ) {
-                    scroller.insertBefore( trigger, scroller.children[ 0 ] );
-                }
-
-                // 万事俱备，只欠东风
                 // 初始化`TabScroll`插件
                 plugin.activePlugin(
                     this,
                     'TabScroll',
-                    this.options.scrollOptions
+                    ( this.options.plugin || {} )[ 'scroll' ]
                 );
             }
 
@@ -306,6 +288,24 @@ define(function ( require ) {
                 this.removeState( 'vertical' );
                 this.removeState( 'horizontal' );
                 this.addState( this.orientation );
+            }
+
+            // 属性`scroll`的变化，需要通过插件管理器同步做下处理
+            // 目前暂时实现的比较粗狂：
+            // `false` -> `true`: 重新激活插件(实际内部是重新创建实例)
+            // `true` -> `false`: 直接销毁插件
+            // TODO: 若`scroll`频繁的设置，可能会带来一定的开销，待后续优化
+            if ( changes && changes.hasOwnProperty( 'scroll' ) ) {
+                if ( this.scroll ) {
+                    plugin.activePlugin(
+                        this,
+                        'TabScroll',
+                        ( this.options.plugin || {} )[ 'scroll' ]
+                    );
+                }
+                else {
+                    plugin.disposePlugin( this, 'TabScroll' );
+                }
             }
         },
 
@@ -403,7 +403,7 @@ define(function ( require ) {
          * 添加一个标签页
          * 
          * @public
-         * @param {Object} tabItem 标签页的配置
+         * @param {Object} tabItem 标签页配置对象
          * @param {string} tabItem.title 标签页的标题
          * @param {string=} tabItem.panel 标签页对应的容器的id
          */
@@ -415,7 +415,7 @@ define(function ( require ) {
          * 在指定位置添加一个标签页
          * 
          * @public
-         * @param {Object} tabItem 标签页的配置
+         * @param {Object} tabItem 标签页配置对象
          * @param {string} tabItem.title 标签页的标题
          * @param {string=} tabItem.panel 标签页对应的容器的id
          * @param {number} index 新标签页要插入的位置索引
@@ -482,7 +482,7 @@ define(function ( require ) {
          * 移除一个标签页
          * 
          * @public
-         * @param {Object} tabItem 标签页的配置
+         * @param {Object} tabItem 标签页配置对象
          */
         remove: function ( tabItem ) {
             if ( this.isDisabled() ) {
@@ -554,9 +554,9 @@ define(function ( require ) {
              * @param {Object} ev 事件参数对象
              * @param {string} ev.type 事件类型
              * @param {Tab} ev.target 触发事件的控件对象
-             * @param {Object} data 当前激活的标签信息
+             * @param {Object} data 当前移除的标签信息
              * @param {number} data.index 标签索引
-             * @param {Object} data.tab 标签数据项
+             * @param {Object} data.tab 标签数据对象
              * @param {string} data.tab.title 标签显示标题
              * @param {string=} data.tab.panel 标签关联的dom容器id
              */
@@ -567,7 +567,7 @@ define(function ( require ) {
          * 选择激活标签
          * 
          * @public
-         * @param {number} index tab标签索引
+         * @param {number} index 需要激活的标签页索引
          */
         select: function ( index ) {
             if ( this.isDisabled() ) {
@@ -602,9 +602,7 @@ define(function ( require ) {
      * 点击某个标签时的切换逻辑
      * 
      * @inner
-     * @param {Tab} this Tab控件实例
-     * @param {Event} event 触发事件的事件对象
-     * @fires Tab#click
+     * @param {Event} event DOMEvent对象
      */
     function clickTab( event ) {
         var main = this.main;
@@ -614,15 +612,6 @@ define(function ( require ) {
         if ( this.isDisabled() ) {
             return;
         }
-
-        /**
-         * @event Tab#click
-         * @param {Object} ev 事件参数对象
-         * @param {string} ev.type 事件类型
-         * @param {Tab} ev.target 触发事件的控件对象
-         * @param {Event} event MouseEvent对象
-         */
-        this.emit( 'click', event );
 
         while ( tabElement && tabElement.nodeName !== 'LI' ) {
             // 尽量减少回溯深度，最多回溯至主控元素
@@ -678,7 +667,7 @@ define(function ( require ) {
          * @param {Tab} ev.target 触发事件的控件对象
          * @param {Object} data 当前激活的标签信息
          * @param {number} data.index 标签索引
-         * @param {Object} data.tab 标签数据项
+         * @param {Object} data.tab 标签数据对象
          * @param {string} data.tab.title 标签显示标题
          * @param {string=} data.tab.panel 标签关联的dom容器id
          */
@@ -766,13 +755,13 @@ define(function ( require ) {
 </div>
 
 <nav>
-    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Tab.html">Tab</a></li><li><a href="TabScroll.html">TabScroll</a></li></ul><h3>Events</h3><ul><li><a href="Tab.html#event:add">add</a></li><li><a href="Tab.html#event:change">change</a></li><li><a href="Tab.html#event:click">click</a></li><li><a href="Tab.html#event:remove">remove</a></li></ul>
+    <h2><a href="index.html">Index</a></h2><h3>Classes</h3><ul><li><a href="Tab.html">Tab</a></li><li><a href="TabScroll.html">TabScroll</a></li></ul><h3>Events</h3><ul><li><a href="Tab.html#event:add">add</a></li><li><a href="Tab.html#event:change">change</a></li><li><a href="Tab.html#event:remove">remove</a></li></ul>
 </nav>
 
 <br clear="both">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.0</a> on Mon Nov 18 2013 21:48:46 GMT+0800 (CST)
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.0</a> on Thu Nov 21 2013 12:25:41 GMT+0800 (CST)
 </footer>
 
 <script> prettyPrint(); </script>
